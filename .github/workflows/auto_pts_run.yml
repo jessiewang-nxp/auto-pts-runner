@@ -1,0 +1,57 @@
+name: auto-pts-run
+
+on:
+  workflow_dispatch:
+    inputs:
+      board:
+        required: true
+        type: string
+      cases:
+        required: true
+        type: string
+      autopts_ref:
+        required: true
+        type: string
+      zephyr_ref:
+        required: true
+        type: string
+      issue_url:
+        required: false
+        type: string
+      comment_url:
+        required: false
+        type: string
+
+jobs:
+  run:
+    runs-on: self-hosted
+    timeout-minutes: 600
+
+    steps:
+      - name: Echo inputs
+        shell: cmd
+        run: |
+          echo board=${{ inputs.board }}
+          echo cases=${{ inputs.cases }}
+          echo autopts_ref=${{ inputs.autopts_ref }}
+          echo zephyr_ref=${{ inputs.zephyr_ref }}
+          echo issue_url=${{ inputs.issue_url }}
+          echo comment_url=${{ inputs.comment_url }}
+
+      - name: Activate venv and run auto_pts_call.py
+        shell: cmd
+        run: |
+          setlocal enableextensions
+          call "C:\Users\nxf60078\zephyrproject\.venv\Scripts\activate.bat"
+          cd /d "C:\Dpc\conn_oobe\bt_cert\zephyr_pts_scripts"
+          python auto_pts_call.py -b "${{ inputs.board }}" -c "${{ inputs.cases }}" -r "${{ inputs.autopts_ref }}" -p "${{ inputs.zephyr_ref }}"
+
+      - name: Upload logs (best-effort)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auto-pts-logs
+          path: |
+            C:\Dpc\auto-pts\logs\*.log
+            C:\Dpc\conn_oobe\bt_cert\zephyr_pts_scripts\*.log
+          if-no-files-found: ignore
