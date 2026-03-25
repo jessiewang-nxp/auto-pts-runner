@@ -39,6 +39,7 @@ jobs:
     timeout-minutes: 600
 
     steps:
+      - uses: actions/checkout@v4
       - name: Echo inputs
         shell: cmd
         run: |
