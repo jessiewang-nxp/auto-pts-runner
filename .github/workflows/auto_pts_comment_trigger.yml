@@ -63,11 +63,18 @@ jobs:
           autopts_ref="pr-$ap"
           zephyr_ref="pr-$z"
 
+          # optional flag: nb (no build)
+          nb="false"
+          if echo "$text" | grep -qiE '(^|\s)nb(\s|$)'; then
+            nb="true"
+          fi
+
           echo "Parsed:"
           echo "  board=$board"
           echo "  cases=$cases"
           echo "  autopts_ref=$autopts_ref"
           echo "  zephyr_ref=$zephyr_ref"
+          echo "  nb=$nb"
 
           api="https://api.github.com/repos/$REPO/actions/workflows/auto_pts_run.yml/dispatches"
           payload="$(jq -n \
@@ -79,7 +86,8 @@ jobs:
             --arg issue_url "$ISSUE_URL" \
             --arg comment_url "$COMMENT_URL" \
             --arg issue_number "$ISSUE_NUMBER" \
-            '{ref:$ref, inputs:{board:$board, cases:$cases, autopts_ref:$autopts_ref, zephyr_ref:$zephyr_ref, issue_url:$issue_url, comment_url:$comment_url, issue_number:$issue_number}}')"
+            --arg nb "$nb" \
+            '{ref:$ref, inputs:{board:$board, cases:$cases, autopts_ref:$autopts_ref, zephyr_ref:$zephyr_ref, issue_url:$issue_url, comment_url:$comment_url, issue_number:$issue_number, nb:$nb}}')"
 
           curl -sS -X POST \
             -H "Authorization: Bearer $GH_TOKEN" \
