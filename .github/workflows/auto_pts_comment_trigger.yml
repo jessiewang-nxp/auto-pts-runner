@@ -23,6 +23,7 @@ jobs:
           ISSUE_URL: ${{ github.event.issue.html_url }}
           COMMENT_URL: ${{ github.event.comment.html_url }}
           ASSOC: ${{ github.event.comment.author_association }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
           set -euo pipefail
 
@@ -77,7 +78,8 @@ jobs:
             --arg zephyr_ref "$zephyr_ref" \
             --arg issue_url "$ISSUE_URL" \
             --arg comment_url "$COMMENT_URL" \
-            '{ref:$ref, inputs:{board:$board, cases:$cases, autopts_ref:$autopts_ref, zephyr_ref:$zephyr_ref, issue_url:$issue_url, comment_url:$comment_url}}')"
+            --arg issue_number "$ISSUE_NUMBER" \
+            '{ref:$ref, inputs:{board:$board, cases:$cases, autopts_ref:$autopts_ref, zephyr_ref:$zephyr_ref, issue_url:$issue_url, comment_url:$comment_url, issue_number:$issue_number}}')"
 
           curl -sS -X POST \
             -H "Authorization: Bearer $GH_TOKEN" \
