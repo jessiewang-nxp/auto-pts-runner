@@ -1,0 +1,84 @@
+name: auto-pts-comment-trigger
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  dispatch:
+    if: contains(github.event.comment.body, '#auto-pts')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Parse comment and dispatch auto-pts-run
+        shell: bash
+        env:
+          BODY: ${{ github.event.comment.body }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          COMMENT_URL: ${{ github.event.comment.html_url }}
+          ASSOC: ${{ github.event.comment.author_association }}
+        run: |
+          set -euo pipefail
+
+          # for safety, only owner, member, collaborator could work.
+          case "$ASSOC" in
+            OWNER|MEMBER|COLLABORATOR) ;;
+            *) echo "Skip: author_association=$ASSOC not allowed"; exit 0 ;;
+          esac
+
+          text="$(printf "%s" "$BODY" | tr -d '\r')"
+          echo "Comment body:"
+          echo "$text"
+
+
+          #   #auto-pts <cases...> rt1170evkb ap=<num> z=<num>
+          # e.g.
+          #   #auto-pts GAP/ADV rt1170evkb ap=1614 z=99198
+
+          ap="$(echo "$text" | sed -nE 's/.*\bap[[:space:]]*=[[:space:]]*([0-9]+)\b.*/\1/p' | head -n1)"
+          z="$(echo "$text"  | sed -nE 's/.*\bz[[:space:]]*=[[:space:]]*([0-9]+)\b.*/\1/p'  | head -n1)"
+          if [ -z "$ap" ] || [ -z "$z" ]; then
+            echo "Missing ap=<num> or z=<num>"
+            exit 2
+          fi
+
+          echo "$text" | grep -qi '\brt1170evkb\b' || { echo "Missing rt1170evkb"; exit 2; }
+
+          cases="$(echo "$text" | sed -nE 's/.*#auto-pts[[:space:]]+(.+)[[:space:]]+rt1170evkb\b.*/\1/p' | head -n1)"
+          cases="$(echo "$cases" | sed -e 's/[[:space:]]\+/ /g' -e 's/^ *//; s/ *$//')"
+          if [ -z "$cases" ]; then
+            echo "Cannot parse cases"
+            exit 2
+          fi
+
+          # params
+          board="evkbmimxrt1170"
+          autopts_ref="pr-$ap"
+          zephyr_ref="pr-$z"
+
+          echo "Parsed:"
+          echo "  board=$board"
+          echo "  cases=$cases"
+          echo "  autopts_ref=$autopts_ref"
+          echo "  zephyr_ref=$zephyr_ref"
+
+          api="https://api.github.com/repos/$REPO/actions/workflows/auto_pts_run.yml/dispatches"
+          payload="$(jq -n \
+            --arg ref "main" \
+            --arg board "$board" \
+            --arg cases "$cases" \
+            --arg autopts_ref "$autopts_ref" \
+            --arg zephyr_ref "$zephyr_ref" \
+            --arg issue_url "$ISSUE_URL" \
+            --arg comment_url "$COMMENT_URL" \
+            '{ref:$ref, inputs:{board:$board, cases:$cases, autopts_ref:$autopts_ref, zephyr_ref:$zephyr_ref, issue_url:$issue_url, comment_url:$comment_url}}')"
+
+          curl -sS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "$api" \
+            -d "$payload"
+
+          echo "Dispatched auto_pts_run.yml"
