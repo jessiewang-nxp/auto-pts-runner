@@ -24,6 +24,10 @@ on:
       issue_number:
         required: true
         type: string
+      nb:
+        required: false
+        type: string
+        default: "false"
 
 permissions:
   issues: write
@@ -44,6 +48,7 @@ jobs:
           echo zephyr_ref=${{ inputs.zephyr_ref }}
           echo issue_url=${{ inputs.issue_url }}
           echo comment_url=${{ inputs.comment_url }}
+          echo nb=${{ inputs.nb }}
 
       - name: Activate venv and run auto_pts_call.py
         shell: cmd
@@ -51,7 +56,12 @@ jobs:
           setlocal enableextensions
           call "C:\Users\nxf60078\zephyrproject\.venv\Scripts\activate.bat"
           cd /d "C:\Dpc\conn_oobe\bt_cert\zephyr_pts_scripts"
-          python auto_pts_call.py -b "${{ inputs.board }}" -c "${{ inputs.cases }}" -r "${{ inputs.autopts_ref }}" -p "${{ inputs.zephyr_ref }}"
+          if /I "${{ inputs.nb }}"=="true" (
+            echo Running with --nb (no build/flash)
+            python auto_pts_call.py -b "${{ inputs.board }}" -c "${{ inputs.cases }}" -r "${{ inputs.autopts_ref }}" -p "${{ inputs.zephyr_ref }}" --nb
+          ) else (
+            python auto_pts_call.py -b "${{ inputs.board }}" -c "${{ inputs.cases }}" -r "${{ inputs.autopts_ref }}" -p "${{ inputs.zephyr_ref }}"
+          )
 
       - name: Upload report artifacts
         if: always()
@@ -80,7 +90,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           ISSUE_NUMBER: ${{ inputs.issue_number }}
+          BOARD: ${{ inputs.board }}
+          CASES: ${{ inputs.cases }}
+          AUTOPTS_REF: ${{ inputs.autopts_ref }}
+          ZEPHYR_REF: ${{ inputs.zephyr_ref }}
+          NB: ${{ inputs.nb }}
         run: |
           setlocal enableextensions
           call "C:\Users\nxf60078\zephyrproject\.venv\Scripts\activate.bat"
-          python -c "import os, re, json, datetime, subprocess, urllib.request\nfrom pathlib import Path\n\n# 1) Results on Github link = bluetooth-qualification repo HEAD tree URL (same logic as auto-pts)\nrepo_path = r'C:\\Dpc\\bluetooth-qualification'\nsha = subprocess.check_output(['git','rev-parse','HEAD'], cwd=repo_path, text=True).strip()\nremote = subprocess.check_output(['git','remote','get-url','origin'], cwd=repo_path, text=True).strip()\nm = re.search(r'github\\.com[:/](?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:\\.git)?$', remote)\nif not m:\n    results_link = f'UNKNOWN_REMOTE ({remote})'\nelse:\n    results_link = f\"https://github.com/{m.group('owner')}/{m.group('repo')}/tree/{sha}\"\n\n# 2) Parse report.txt for summary\nreport_txt = Path(r'C:\\Dpc\\auto-pts\\report.txt')\nlines = report_txt.read_text(encoding='utf-8', errors='ignore').splitlines() if report_txt.exists() else []\nrepo_line = lines[0] if lines else ''\nresults = lines[1:] if len(lines) > 1 else []\npass_cnt = sum(1 for l in results if 'PASS' in l)\nfail_cnt = sum(1 for l in results if 'FAIL' in l)\ntotal = len(results)\n\n# 3) Compose markdown comment (email-like)\nbody = []\nbody.append('### 3. Test Results')\nbody.append('')\nbody.append('**Summary**')\nbody.append(f'- PASS: {pass_cnt}')\nbody.append(f'- FAIL: {fail_cnt}')\nbody.append(f'- Total: {total}')\nbody.append('')\nif repo_line:\n    body.append(f'**Repo**: `{repo_line}`')\nbody.append('')\nbody.append('**Logs**')\nbody.append(f'- [Results on Github]({results_link})')\nbody.append('')\nbody.append('Artifacts: report.xlsx / report.txt are attached in the Actions run.')\ncomment = '\\n'.join(body)\n\n# 4) Post comment back to issue\nrepo = os.environ['GITHUB_REPOSITORY']\nissue = os.environ['ISSUE_NUMBER']\ntoken = os.environ['GITHUB_TOKEN']\nurl = f'https://api.github.com/repos/{repo}/issues/{issue}/comments'\nreq = urllib.request.Request(url, data=json.dumps({'body': comment}).encode('utf-8'), headers={\n    'Authorization': f'Bearer {token}',\n    'Accept': 'application/vnd.github+json',\n    'User-Agent': 'auto-pts-runner'\n}, method='POST')\nurllib.request.urlopen(req).read()\nprint('comment posted')\n"
+          python "%GITHUB_WORKSPACE%\.github\scripts\comment_back.py"
