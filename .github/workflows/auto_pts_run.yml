@@ -33,13 +33,16 @@ permissions:
   issues: write
   contents: read
 
+concurrency:
+  group: auto-pts-${{ inputs.issue_number }}-rt1170evkb
+  cancel-in-progress: true
+
 jobs:
   run:
     runs-on: self-hosted
     timeout-minutes: 600
 
     steps:
-      - uses: actions/checkout@v4
       - name: Echo inputs
         shell: cmd
         run: |
@@ -57,6 +60,11 @@ jobs:
           setlocal enableextensions
           call "C:\Users\nxf60078\zephyrproject\.venv\Scripts\activate.bat"
           cd /d "C:\Dpc\conn_oobe\bt_cert\zephyr_pts_scripts"
+
+          echo GITHUB_RUN_ID=%GITHUB_RUN_ID%
+          echo COMMENT_URL=${{ inputs.comment_url }}
+          echo NB=${{ inputs.nb }}
+
           if /I "${{ inputs.nb }}"=="true" (
             echo Running with --nb (no build/flash)
             python auto_pts_call.py -b "${{ inputs.board }}" -c "${{ inputs.cases }}" -r "${{ inputs.autopts_ref }}" -p "${{ inputs.zephyr_ref }}" --nb
