@@ -7,6 +7,7 @@ on:
 permissions:
   actions: write
   contents: read
+  issues: write
 
 jobs:
   dispatch:
@@ -22,6 +23,7 @@ jobs:
           REPO: ${{ github.repository }}
           ISSUE_URL: ${{ github.event.issue.html_url }}
           COMMENT_URL: ${{ github.event.comment.html_url }}
+          COMMENT_ID: ${{ github.event.comment.id }}
           ASSOC: ${{ github.event.comment.author_association }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
@@ -36,7 +38,6 @@ jobs:
           text="$(printf "%s" "$BODY" | tr -d '\r')"
           echo "Comment body:"
           echo "$text"
-
 
           #   #auto-pts <cases...> rt1170evkb ap=<num> z=<num>
           # e.g.
@@ -75,6 +76,41 @@ jobs:
           echo "  autopts_ref=$autopts_ref"
           echo "  zephyr_ref=$zephyr_ref"
           echo "  nb=$nb"
+          echo "  issue_number=$ISSUE_NUMBER"
+          echo "  comment_id=$COMMENT_ID"
+
+          # ---- Idempotency / debounce: mark comment as processed via reaction ----
+          # Use a reaction as a lightweight "handled" marker to avoid duplicate dispatches.
+          marker="rocket"
+
+          reactions_api="https://api.github.com/repos/$REPO/issues/comments/$COMMENT_ID/reactions?per_page=100"
+          marker_exists="$(
+            curl -sS \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "$reactions_api" \
+            | jq -r --arg marker "$marker" '
+                any(.[]; .user.login=="github-actions[bot]" and .content==$marker)
+              '
+          )"
+
+          if [ "$marker_exists" = "true" ]; then
+            echo "Skip: comment $COMMENT_ID already handled (reaction '$marker' exists)."
+            exit 0
+          fi
+
+          add_reaction_api="https://api.github.com/repos/$REPO/issues/comments/$COMMENT_ID/reactions"
+          # Add marker reaction first to reduce race risk; allow 422 (already exists).
+          curl -sS -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -X POST \
+            "$add_reaction_api" \
+            -d "$(jq -n --arg c "$marker" '{content:$c}')" \
+            | grep -Eq '^(200|201|422)$' || {
+              echo "Failed to add reaction marker; abort to avoid duplicate dispatch."
+              exit 2
+            }
 
           api="https://api.github.com/repos/$REPO/actions/workflows/auto_pts_run.yml/dispatches"
           payload="$(jq -n \
@@ -86,8 +122,19 @@ jobs:
             --arg issue_url "$ISSUE_URL" \
             --arg comment_url "$COMMENT_URL" \
             --arg issue_number "$ISSUE_NUMBER" \
+            --arg comment_id "$COMMENT_ID" \
             --arg nb "$nb" \
-            '{ref:$ref, inputs:{board:$board, cases:$cases, autopts_ref:$autopts_ref, zephyr_ref:$zephyr_ref, issue_url:$issue_url, comment_url:$comment_url, issue_number:$issue_number, nb:$nb}}')"
+            '{ref:$ref, inputs:{
+              board:$board,
+              cases:$cases,
+              autopts_ref:$autopts_ref,
+              zephyr_ref:$zephyr_ref,
+              issue_url:$issue_url,
+              comment_url:$comment_url,
+              issue_number:$issue_number,
+              comment_id:$comment_id,
+              nb:$nb
+            }}')"
 
           curl -sS -X POST \
             -H "Authorization: Bearer $GH_TOKEN" \
