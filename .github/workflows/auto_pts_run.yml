@@ -24,6 +24,9 @@ on:
       issue_number:
         required: true
         type: string
+      comment_id:
+        required: true
+        type: string
       nb:
         required: false
         type: string
@@ -33,6 +36,7 @@ permissions:
   issues: write
   contents: read
 
+# Same-issue serialization: newest cancels previous
 concurrency:
   group: auto-pts-${{ inputs.issue_number }}-rt1170evkb
   cancel-in-progress: true
@@ -46,6 +50,7 @@ jobs:
       - name: Echo inputs
         shell: cmd
         run: |
+          echo comment_id=${{ inputs.comment_id }}
           echo board=${{ inputs.board }}
           echo cases=${{ inputs.cases }}
           echo autopts_ref=${{ inputs.autopts_ref }}
@@ -63,6 +68,7 @@ jobs:
 
           echo GITHUB_RUN_ID=%GITHUB_RUN_ID%
           echo COMMENT_URL=${{ inputs.comment_url }}
+          echo COMMENT_ID=${{ inputs.comment_id }}
           echo NB=${{ inputs.nb }}
 
           if /I "${{ inputs.nb }}"=="true" (
