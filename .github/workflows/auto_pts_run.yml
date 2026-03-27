@@ -66,17 +66,13 @@ jobs:
           call "C:\Users\nxf60078\zephyrproject\.venv\Scripts\activate.bat"
           cd /d "C:\Dpc\conn_oobe\bt_cert\zephyr_pts_scripts"
 
-          echo GITHUB_RUN_ID=%GITHUB_RUN_ID%
-          echo COMMENT_URL=${{ inputs.comment_url }}
-          echo COMMENT_ID=${{ inputs.comment_id }}
-          echo NB=${{ inputs.nb }}
+          set "EXTRA="
+          if /I "${{ inputs.nb }}"=="true" set "EXTRA=--nb"
 
-          if /I "${{ inputs.nb }}"=="true" (
-            echo Running with --nb (no build/flash)
-            python auto_pts_call.py -b "${{ inputs.board }}" -c "${{ inputs.cases }}" -r "${{ inputs.autopts_ref }}" -p "${{ inputs.zephyr_ref }}" --nb
-          ) else (
-            python auto_pts_call.py -b "${{ inputs.board }}" -c "${{ inputs.cases }}" -r "${{ inputs.autopts_ref }}" -p "${{ inputs.zephyr_ref }}"
-          )
+          echo NB=${{ inputs.nb }}
+          echo EXTRA=%EXTRA%
+
+          python auto_pts_call.py -b "${{ inputs.board }}" -c "${{ inputs.cases }}" -r "${{ inputs.autopts_ref }}" -p "${{ inputs.zephyr_ref }}" %EXTRA%
 
       - name: Upload report artifacts
         if: always()
