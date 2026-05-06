@@ -44,7 +44,7 @@ jobs:
           #   #auto-pts GAP/ADV rt1170evkb ap=1614 z=99198
 
           ap="$(echo "$text" | sed -nE 's/.*\bap[[:space:]]*=[[:space:]]*([0-9]+)\b.*/\1/p' | head -n1)"
-          z="$(echo "$text"  | sed -nE 's/.*\bz[[:space:]]*=[[:space:]]*([0-9]+)\b.*/\1/p'  | head -n1)"
+          z="$(echo "$text"  | sed -nE 's/.*\bz[[:space:]]*=[[:space:]]*([^[:space:]]+).*/\1/p'  | head -n1)"
           if [ -z "$ap" ] || [ -z "$z" ]; then
             echo "Missing ap=<num> or z=<num>"
             exit 2
@@ -62,7 +62,11 @@ jobs:
           # params
           board="evkbmimxrt1170"
           autopts_ref="pr-$ap"
-          zephyr_ref="pr-$z"
+          if echo "$z" | grep -qE '^[0-9]+$'; then
+            zephyr_ref="pr-$z"
+          else
+            zephyr_ref="$z"
+          fi
 
           # optional flag: nb (no build)
           nb="false"
