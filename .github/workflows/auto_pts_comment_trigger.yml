@@ -43,10 +43,11 @@ jobs:
           # e.g.
           #   #auto-pts GAP/ADV rt1170evkb ap=1614 z=99198
 
-          ap="$(echo "$text" | sed -nE 's/.*\bap[[:space:]]*=[[:space:]]*([0-9]+)\b.*/\1/p' | head -n1)"
+          # ap and z accept either a PR number (e.g. 1614) or a branch/tag name (e.g. master, main).
+          ap="$(echo "$text" | sed -nE 's/.*\bap[[:space:]]*=[[:space:]]*([^[:space:]]+).*/\1/p' | head -n1)"
           z="$(echo "$text"  | sed -nE 's/.*\bz[[:space:]]*=[[:space:]]*([^[:space:]]+).*/\1/p'  | head -n1)"
           if [ -z "$ap" ] || [ -z "$z" ]; then
-            echo "Missing ap=<num> or z=<num>"
+            echo "Missing ap=<num|branch> or z=<num|branch>"
             exit 2
           fi
 
@@ -61,7 +62,12 @@ jobs:
 
           # params
           board="evkbmimxrt1170"
-          autopts_ref="pr-$ap"
+          # numeric -> treat as PR number (pr-<num>); otherwise treat as a branch/tag name.
+          if echo "$ap" | grep -qE '^[0-9]+$'; then
+            autopts_ref="pr-$ap"
+          else
+            autopts_ref="$ap"
+          fi
           if echo "$z" | grep -qE '^[0-9]+$'; then
             zephyr_ref="pr-$z"
           else
